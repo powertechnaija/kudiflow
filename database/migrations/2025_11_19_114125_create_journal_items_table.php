@@ -13,9 +13,10 @@ return new class extends Migration
     {
         Schema::create('journal_items', function (Blueprint $table) {
             $table->id();
-            $table->date('date');
-            $table->string('description');
-            $table->string('reference_number')->nullable(); // e.g., Order ID
+            $table->foreignId('journal_entry_id')->constrained()->onDelete('cascade');
+            $table->foreignId('chart_of_account_id')->constrained()->onDelete('cascade');
+            $table->decimal('debit', 10, 2)->default(0.00);
+            $table->decimal('credit', 10, 2)->default(0.00);
             $table->timestamps();
         });
     }

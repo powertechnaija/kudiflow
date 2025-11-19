@@ -11,11 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('chart_of_accounts', function (Blueprint $table) {
+        Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // e.g., Cash, Sales Revenue, Inventory Asset
-            $table->string('code')->unique(); // e.g., 1000, 4000
-            $table->enum('type', ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']);
+            $table->foreignId('customer_id')->constrained()->onDelete('cascade');
+            $table->string('status');
+            $table->decimal('total_amount', 10, 2);
+            $table->string('invoice_number');
             $table->timestamps();
         });
     }
@@ -25,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('chart_of_accounts');
+        Schema::dropIfExists('orders');
     }
 };

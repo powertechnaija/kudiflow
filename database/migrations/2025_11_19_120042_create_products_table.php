@@ -11,11 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('chart_of_accounts', function (Blueprint $table) {
+        Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // e.g., Cash, Sales Revenue, Inventory Asset
-            $table->string('code')->unique(); // e.g., 1000, 4000
-            $table->enum('type', ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']);
+            $table->string('name');
+            $table->text('description')->nullable();
             $table->timestamps();
         });
     }
@@ -25,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('chart_of_accounts');
+        Schema::dropIfExists('products');
     }
 };
