@@ -11,13 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('return_orders', function (Blueprint $table) {
-            $table->id();
+        Schema::table('product_variants', function (Blueprint $table) {
             $table->foreignId('store_id')->constrained()->onDelete('cascade');
-            $table->foreignId('order_id')->constrained()->onDelete('cascade');
-            $table->string('reason');
-            $table->string('status');
-            $table->timestamps();
+            $table->unique(['sku', 'store_id']);
         });
     }
 
@@ -26,6 +22,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('return_orders');
+        Schema::table('product_variants', function (Blueprint $table) {
+            $table->dropForeign(['store_id']);
+            $table->dropColumn('store_id');
+            $table->dropUnique(['sku', 'store_id']);
+        });
     }
 };

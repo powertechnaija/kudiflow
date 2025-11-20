@@ -45,4 +45,46 @@ class AuthController extends Controller
             \App\Models\ChartOfAccount::create(array_merge($account, ['store_id' => $storeId]));
         }
     }
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if (!Auth::attempt($request->only('email', 'password'))) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
+
+        $user = User::where('email', $request->email)
+                    ->with(['store', 'roles']) // Load Store and Roles
+                    ->firstOrFail();
+
+        // Create Token
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->getRoleNames()->first(),
+                'store' => $user->store // Frontend needs this for Currency/Name
+            ]
+        ]);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+        return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    public function me(Request $request)
+    {
+        return response()->json($request->user()->load(['store', 'roles']));
+    }
 }

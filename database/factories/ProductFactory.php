@@ -6,9 +6,9 @@ use App\Models\Store;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\ChartOfAccount>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Product>
  */
-class ChartOfAccountFactory extends Factory
+class ProductFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -19,9 +19,8 @@ class ChartOfAccountFactory extends Factory
     {
         return [
             'name' => $this->faker->word(),
-            'type' => $this->faker->randomElement(['Asset', 'Liability', 'Equity', 'Revenue', 'Expense']),
-            'code' => $this->faker->unique()->randomNumber(),
-            'store_id' => Store::factory()
+            'description' => $this->faker->sentence(),
+            'store_id' => Store::factory(),
         ];
     }
 }

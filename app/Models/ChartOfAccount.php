@@ -4,14 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BelongsToStore;
 
 class ChartOfAccount extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToStore;
 
     protected $fillable = [
         'name',
         'type',
-        'code'
+        'code',
+        'store_id'
     ];
 }

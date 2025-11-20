@@ -2,7 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\QueryBuilder;
 
 class ProductController extends Controller
 {
@@ -46,12 +52,63 @@ class ProductController extends Controller
     // ProductController.php
     public function store(Request $request)
     {
-        $product = Product::create($request->only(['name', 'description']));
+        // 1. SAAS-AWARE VALIDATION
+        $storeId = Auth::user()->store_id;
 
-        foreach ($request->variants as $variant) {
-            $product->variants()->create($variant);
-        }
+        $request->validate([
+            'name' => 'required|string',
+            'description' => 'nullable|string',
+            'variants' => 'required|array|min:1',
+            
+            // "distinct" checks for duplicates inside the input array itself
+            'variants.*.sku' => [
+                'required',
+                'distinct',
+                // Complex Rule: Unique SKU ONLY within this specific store's products
+                Rule::unique('product_variants', 'sku')->where(function ($query) use ($storeId) {
+                    return $query->where('store_id', $storeId);
+                }),
+            ],
+            'variants.*.price' => 'required|numeric|min:0',
+            'variants.*.cost_price' => 'required|numeric|min:0',
+            'variants.*.size' => 'nullable|string',
+            'variants.*.color' => 'nullable|string',
+            // Barcode also needs to be unique per store
+            'variants.*.barcode' => [
+                'nullable',
+                'distinct',
+                Rule::unique('product_variants', 'barcode')->where(function ($query) use ($storeId) {
+                    return $query->where('store_id', $storeId);
+                }),
+            ],
+        ]);
 
-        return response()->json($product->load('variants'), 201);
+        // 2. CREATION LOGIC
+        return DB::transaction(function () use ($request, $storeId) {
+            // Create Product (BelongsToStore trait automatically adds store_id)
+            $product = Product::create([
+                'store_id' => $storeId, // Explicitly set store_id
+                'name' => $request->name,
+                'description' => $request->description
+            ]);
+
+            // Create Variants
+            // Note: Variants don't usually need store_id if they link to a product, 
+            // but we must ensure the relationship is set via the parent.
+            foreach ($request->variants as $variantData) {
+                $product->variants()->create([
+                    'store_id' => $storeId,
+                    'sku' => $variantData['sku'],
+                    'price' => $variantData['price'],
+                    'cost_price' => $variantData['cost_price'],
+                    'stock_quantity' => 0, // Initial stock is 0. Must use Purchase/Opening Balance to add stock.
+                    'size' => $variantData['size'] ?? null,
+                    'color' => $variantData['color'] ?? null,
+                    'barcode' => $variantData['barcode'] ?? null,
+                ]);
+            }
+
+            return response()->json($product->load('variants'), 201);
+        });
     }
 }

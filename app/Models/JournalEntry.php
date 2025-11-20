@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class JournalEntry extends Model
 {
     protected $fillable = [
+        'store_id',
         'date',
         'description',
         'reference_number'

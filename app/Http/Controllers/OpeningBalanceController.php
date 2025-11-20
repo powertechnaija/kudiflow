@@ -21,28 +21,24 @@ class OpeningBalanceController extends Controller
 
         return DB::transaction(function() use ($request, $accounting) {
             $totalEquity = $request->cash_on_hand + $request->inventory_value;
-            
-            // Get Account IDs based on Codes
-            $cashId = ChartOfAccount::where('code', AccountCodes::CASH)->first()->id;
-            $inventoryId = ChartOfAccount::where('code', AccountCodes::INVENTORY_ASSET)->first()->id;
-            $equityId = ChartOfAccount::where('code', AccountCodes::OWNERS_EQUITY)->first()->id;
 
-            // Record Entry
+            // SAAS REFACTOR: Use Helper to get Store-Specific IDs
+            $cashId = $accounting->getAccountId(AccountCodes::CASH);
+            $inventoryId = $accounting->getAccountId(AccountCodes::INVENTORY_ASSET);
+            $equityId = $accounting->getAccountId(AccountCodes::OWNERS_EQUITY);
+
             $accounting->recordEntry(
                 $request->date,
                 'Opening Balance Setup',
-                'OP-'.time(),
+                'OP-START',
                 [
-                    // Debit Assets (Increase)
                     ['account_id' => $cashId, 'debit' => $request->cash_on_hand, 'credit' => 0],
                     ['account_id' => $inventoryId, 'debit' => $request->inventory_value, 'credit' => 0],
-                    
-                    // Credit Equity (Increase ownership value)
                     ['account_id' => $equityId, 'debit' => 0, 'credit' => $totalEquity],
                 ]
             );
 
-            return response()->json(['message' => 'Opening balances established']);
+            return response()->json(['message' => 'Opening balances set']);
         });
     }
 }

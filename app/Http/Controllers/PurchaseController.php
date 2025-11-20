@@ -2,61 +2,98 @@
 
 namespace App\Http\Controllers;
 
-use App\Constants\AccountCodes;
-use App\Models\ProductVariant;
-use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\ProductVariant;
+use App\Services\AccountingService;
+use App\Constants\AccountCodes;
 
 class PurchaseController extends Controller
 {
-    //
-    public function store(Request $request, AccountingService $accounting)
+    protected $accounting;
+
+    public function __construct(AccountingService $accounting)
+    {
+        $this->accounting = $accounting;
+    }
+
+    /**
+     * Record a new inventory purchase.
+     */
+    public function store(Request $request)
     {
         $request->validate([
             'supplier_name' => 'required|string',
+            'payment_method' => 'required|in:cash,credit',
             'items' => 'required|array',
-            'payment_method' => 'required|in:cash,credit', // Cash vs Accounts Payable
+            'items.*.variant_id' => 'required|exists:product_variants,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_cost' => 'required|numeric|min:0',
         ]);
 
-        return DB::transaction(function () use ($request, $accounting) {
+        $storeId = auth()->user()->store_id;
+
+        // Use a database transaction
+        $dbConnection = DB::connection()->getPdo()->inTransaction();
+        if (!$dbConnection) {
+            DB::beginTransaction();
+        }
+
+        try {
             $totalCost = 0;
 
-            // 1. Update Inventory
+            // 1. Update Inventory Stock Levels
             foreach ($request->items as $item) {
-                // Trait ensures we only update our own store's products
-                $variant = ProductVariant::lockForUpdate()->findOrFail($item['variant_id']);
-                
-                // Update Weighted Average Cost could be done here, 
-                // but simply updating current cost price for now:
-                $variant->cost_price = $item['unit_cost'];
+                $variant = ProductVariant::find($item['variant_id']);
                 $variant->increment('stock_quantity', $item['quantity']);
-                
-                $totalCost += ($item['quantity'] * $item['unit_cost']);
+                $totalCost += $item['quantity'] * $item['unit_cost'];
             }
 
-            // 2. Resolve Accounts
-            $inventoryId = $accounting->getAccountId(AccountCodes::INVENTORY_ASSET);
-            
-            $creditAccountId = match ($request->payment_method) {
-                'cash' => $accounting->getAccountId(AccountCodes::CASH),
-                'credit' => $accounting->getAccountId(AccountCodes::ACCOUNTS_PAYABLE),
-            };
-
-            // 3. Record Journal
-            $accounting->recordEntry(
-                now(),
-                "Purchase from {$request->supplier_name}",
-                'PUR-' . time(),
+            // 2. Prepare Journal Entry Items
+            $entryItems = [
+                // Debit Inventory Asset Account
                 [
-                    // Debit Inventory (Asset Increases)
-                    ['account_id' => $inventoryId, 'debit' => $totalCost, 'credit' => 0],
-                    // Credit Cash or Payable (Asset Decreases or Liability Increases)
-                    ['account_id' => $creditAccountId, 'debit' => 0, 'credit' => $totalCost],
-                ]
+                    'chart_of_account_id' => $this->accounting->getAccountId($storeId, AccountCodes::INVENTORY_ASSET),
+                    'debit' => $totalCost,
+                    'credit' => 0
+                ],
+            ];
+
+            if ($request->payment_method === 'credit') {
+                // Credit Accounts Payable
+                $entryItems[] = [
+                    'chart_of_account_id' => $this->accounting->getAccountId($storeId, AccountCodes::ACCOUNTS_PAYABLE),
+                    'debit' => 0,
+                    'credit' => $totalCost
+                ];
+            } else { // cash
+                // Credit Cash Account
+                $entryItems[] = [
+                    'chart_of_account_id' => $this->accounting->getAccountId($storeId, AccountCodes::CASH),
+                    'debit' => 0,
+                    'credit' => $totalCost
+                ];
+            }
+
+            // 3. Record the Journal Entry
+            $this->accounting->recordEntry(
+                $storeId,
+                now(),
+                'Inventory Purchase from ' . $request->supplier_name,
+                null,
+                $entryItems
             );
 
-            return response()->json(['message' => 'Stock updated and transaction recorded']);
-        });
+            if (!$dbConnection) {
+                DB::commit();
+            }
+            return response()->json(['message' => 'Purchase recorded successfully'], 201);
+
+        } catch (\Exception $e) {
+            if (!$dbConnection) {
+                DB::rollBack();
+            }
+            return response()->json(['message' => 'Error recording purchase: ' . $e->getMessage()], 500);
+        }
     }
 }
