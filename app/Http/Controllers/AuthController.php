@@ -3,6 +3,11 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use App\Models\Store;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
@@ -45,27 +50,44 @@ class AuthController extends Controller
             \App\Models\ChartOfAccount::create(array_merge($account, ['store_id' => $storeId]));
         }
     }
+    
     public function login(Request $request)
     {
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
+            'remember' => 'boolean'
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        // Manually find user and check password for stateless API auth
+        $user = User::where('email', $request->email)
+                    ->with(['store', 'roles']) // Pre-load relationships
+                    ->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        $user = User::where('email', $request->email)
-                    ->with(['store', 'roles']) // Load Store and Roles
-                    ->firstOrFail();
+        // Revoke all old tokens
+        $user->tokens()->delete();
 
-        // Create Token
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Create New Token with dynamic expiration
+        $newAccessToken = $user->createToken('auth_token');
+        $token = $newAccessToken->accessToken;
+
+        if ($request->boolean('remember')) {
+            // "Remember me" - Set a long expiration (1 week)
+            $token->expires_at = now()->addWeek();
+        } else {
+            // Standard session - use default lifetime from config (120 minutes)
+            $token->expires_at = now()->addMinutes(config('session.lifetime', 120));
+        }
+        
+        $token->save();
 
         return response()->json([
             'message' => 'Login successful',
-            'access_token' => $token,
+            'access_token' => $newAccessToken->plainTextToken,
             'token_type' => 'Bearer',
             'user' => [
                 'id' => $user->id,

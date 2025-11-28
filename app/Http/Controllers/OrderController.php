@@ -12,6 +12,17 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    public function index(Request $request)
+    {
+        // BelongsToStore trait handles isolation
+        $orders = \Spatie\QueryBuilder\QueryBuilder::for(Order::class)
+            ->allowedFilters(['invoice_number', 'status'])
+            ->with(['customer', 'items.variant']) // Eager load
+            ->defaultSort('-created_at')
+            ->paginate($request->get('per_page', 20));
+
+        return response()->json($orders);
+    }
     public function store(Request $request, AccountingService $accounting)
     {
         $request->validate([

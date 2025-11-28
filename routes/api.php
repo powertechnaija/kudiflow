@@ -11,6 +11,9 @@ use App\Http\Controllers\ChartOfAccountController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\PettyCashController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\UserController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -21,6 +24,8 @@ use App\Http\Controllers\PettyCashController;
 // Public Routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/test', function(){ return response()->json('Hello World'); });
+
 
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -28,6 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // User & Auth
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    // Inside auth middleware group
+    Route::apiResource('users', UserController::class)->middleware('role:admin|manager');
 
     // Setup
     Route::post('/setup/opening-balance', [SetupController::class, 'openingBalance']);
@@ -35,6 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Inventory Management
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'store']);
+    Route::put('/products/{product}', [ProductController::class, 'update']);
+    Route::get('/products/{product}/history', [ProductController::class, 'history']);
     Route::put('/products/bulk-update', [ProductController::class, 'bulkUpdate']);
     Route::post('/inventory/purchase', [PurchaseController::class, 'store']); // Procurement
     
@@ -47,6 +56,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Expenses
     Route::post('/petty-cash', [PettyCashController::class, 'store']);
+    //customer management
+    Route::apiResource('customers', CustomerController::class);
 
     // Accounting & Reporting (Role Protected: Admin/Manager only)
     Route::middleware(['role:admin|manager'])->group(function () {

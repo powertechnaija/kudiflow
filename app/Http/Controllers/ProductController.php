@@ -9,9 +9,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\QueryBuilder;
+use App\Models\ProductHistory;
+
+
+
 
 class ProductController extends Controller
 {
+
     public function index(Request $request)
     {
         // The BelongsToStore trait automatically restricts this to the user's store
@@ -49,6 +54,66 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    public function update(Request $request, Product $product)
+    {
+        dd($product);
+        $this->authorize('update', $product); // Ensure ownership via Policy or check store_id
+
+        return DB::transaction(function () use ($request, $product) {
+            // 1. Update Basic Info
+            if ($product->name !== $request->name) {
+                ProductHistory::create([
+                    'store_id' => $product->store_id,
+                    'user_id' => Auth::id(),
+                    'product_id' => $product->id,
+                    'action' => 'Details Updated',
+                    'details' => "Renamed from '{$product->name}' to '{$request->name}'"
+                ]);
+                $product->update(['name' => $request->name, 'description' => $request->description]);
+            }
+
+            // 2. Update Variants
+            foreach ($request->variants as $variantData) {
+                // Find existing variant by ID or create new if needed (simplified here to update existing)
+                if (isset($variantData['id'])) {
+                    $variant = $product->variants()->find($variantData['id']);
+                    
+                    if ($variant) {
+                        $changes = [];
+                        if ($variant->price != $variantData['price']) $changes[] = "Price: {$variant->price} -> {$variantData['price']}";
+                        if ($variant->stock_quantity != $variantData['stock_quantity']) $changes[] = "Stock: {$variant->stock_quantity} -> {$variantData['stock_quantity']}";
+
+                        if (!empty($changes)) {
+                            ProductHistory::create([
+                                'store_id' => $product->store_id,
+                                'user_id' => Auth::id(),
+                                'product_id' => $product->id,
+                                'action' => 'Variant Updated',
+                                'details' => "SKU {$variant->sku}: " . implode(', ', $changes)
+                            ]);
+                            
+                            $variant->update([
+                                'price' => $variantData['price'],
+                                'cost_price' => $variantData['cost_price'],
+                                'stock_quantity' => $variantData['stock_quantity'], // Ideally stock changes go via Purchase/Sale, but admin override is allowed here
+                                'sku' => $variantData['sku']
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            return response()->json(['message' => 'Product updated']);
+        });
+    }
+
+    public function history(Product $product)
+    {
+        dd('here');
+        return response()->json(
+            $product->history()->with('user:id,name')->latest()->get()
+        );
+    }
     // ProductController.php
     public function store(Request $request)
     {
