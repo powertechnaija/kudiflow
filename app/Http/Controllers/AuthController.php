@@ -15,7 +15,7 @@ class AuthController extends Controller
     {
         return DB::transaction(function () use ($request) {
             // 1. Create Store
-            $store = Store::create(['name' => $request->store_name]);
+            $store = Store::create(['name' => $request->name . ' Store']);
 
             // 2. Create User linked to Store
             $user = User::create([
@@ -31,7 +31,10 @@ class AuthController extends Controller
             // 3. Seed Default Chart of Accounts for this Store
             $this->seedDefaultAccounts($store->id);
 
-            return response()->json(['token' => $user->createToken('api')->plainTextToken]);
+            return response()->json([
+                'user' => $user,
+                'token' => $user->createToken('api')->plainTextToken
+            ], 201);
         });
     }
 
