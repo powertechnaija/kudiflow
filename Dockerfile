@@ -1,7 +1,6 @@
-# Use official PHP 8.2 FPM with Alpine (much easier + fewer install errors)
 FROM php:8.2-fpm-alpine
 
-# Install system dependencies
+# System dependencies
 RUN apk update && apk add --no-cache \
     git \
     unzip \
@@ -14,32 +13,35 @@ RUN apk update && apk add --no-cache \
     curl \
     bash
 
-# Install PHP extensions
-RUN docker-php-ext-configure zip
-RUN docker-php-ext-install zip pdo pdo_sqlite
+# PHP extensions
+RUN docker-php-ext-configure zip \
+    && docker-php-ext-install zip pdo pdo_sqlite
 
-# Install Composer
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Work directory
 WORKDIR /app
 
-# Copy source code
+# Copy app
 COPY . .
 
-# Install Laravel dependencies
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+# Install dependencies
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-# Ensure SQLite file exists
-RUN touch /app/database/database.sqlite && chmod 777 /app/database/database.sqlite
+# Permissions for storage + cache
+RUN mkdir -p /app/storage /app/bootstrap/cache \
+    && chmod -R 777 /app/storage /app/bootstrap/cache
 
-# Run migrations + seed during build
-RUN php artisan key:generate
-RUN php artisan migrate --force
-RUN php artisan db:seed --force
+# Create SQLite database file
+RUN mkdir -p /app/database \
+    && touch /app/database/database.sqlite \
+    && chmod 777 /app/database/database.sqlite
 
 # Expose port
 EXPOSE 8000
 
-# Start Laravel using PHP server
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Start script that runs artisan commands safely
+COPY ./docker/start.sh /start.sh
+RUN chmod +x /start.sh
+
+CMD ["/start.sh"]
