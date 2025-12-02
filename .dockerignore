@@ -2,7 +2,8 @@ vendor
 node_modules
 .git
 .env
+.env.*
 docker-compose.yml
-storage/logs
 npm-debug.log
 yarn-error.log
+storage/logs/*
