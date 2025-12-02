@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
         $store_id = Store::factory()->create([
-            'name' => 'Dream Store',
+            'name' => $faker->businessName(),
             'address' => '',
             'phone' => '',
             'logo' => '',
@@ -29,9 +29,9 @@ class DatabaseSeeder extends Seeder
         ]);
 
         User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'store_id' => 1,
+            'name' => $faker->name(),
+            'email' => $faker->email(),
+            'store_id' => $store_id->id,
             'password' => Hash::make('password')
         ]);
 
