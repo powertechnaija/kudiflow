@@ -1,7 +1,4 @@
-# ====================================================================
-#  Laravel + PHP 8.2 + Apache + SQLite (Production Ready for Railway)
-# ====================================================================
-
+# PHP 8.2 Apache (Debian Bookworm)
 FROM php:8.2-apache
 
 # Install system dependencies
@@ -9,36 +6,36 @@ RUN apt-get update && apt-get install -y \
     git \
     unzip \
     zip \
-    libzip-dev \
-    libonig-dev \
     sqlite3 \
-    && docker-php-ext-install pdo pdo_sqlite
+    libzip-dev \
+    && docker-php-ext-configure zip \
+    && docker-php-ext-install zip pdo pdo_sqlite
 
-# Enable Apache rewrite module
+# Enable apache rewrite
 RUN a2enmod rewrite
 
-# Set working directory
+# Work directory
 WORKDIR /var/www/html
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files first
+# Copy composer files first for caching
 COPY composer.json composer.lock ./
 
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
-# Copy entire application
+# Copy full application
 COPY . .
 
-# Set correct permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Laravel storage folder permissions
+RUN chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-# Create sqlite directory placeholder
+# Ensure database folder exists
 RUN mkdir -p /var/www/html/database
 
-# Copy entrypoint script
+# Entry script
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
