@@ -17,7 +17,8 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['https://9000-firebase-dream-1763315369962.cluster-ikslh4rdsnbqsvu5nw3v4dqjj2.cloudworkstations.dev'],
+    'allowed_origins' => ['https://9000-firebase-dream-1763315369962.cluster-ikslh4rdsnbqsvu5nw3v4dqjj2.cloudworkstations.dev',
+    'https://mykanta.netlify.app'],
 
     'allowed_origins_patterns' => [],
 
