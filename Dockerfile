@@ -1,65 +1,45 @@
-# ====================================================================
-#   Laravel + PHP 8.2 + Apache + SQLite
-#   Production-Ready Dockerfile for Railway.app
-# ====================================================================
+# Use official PHP 8.2 FPM with Alpine (much easier + fewer install errors)
+FROM php:8.2-fpm-alpine
 
-FROM php:8.2-apache
-
-# ------------------------------------------------------------
-# Install system packages & PHP extensions
-# ------------------------------------------------------------
-RUN apt-get update && apt-get install -y \
+# Install system dependencies
+RUN apk update && apk add --no-cache \
     git \
     unzip \
     zip \
-    sqlite3 \
+    sqlite \
+    sqlite-dev \
+    libzip \
     libzip-dev \
-    && docker-php-ext-configure zip --with-libzip \
-    && docker-php-ext-install zip pdo pdo_sqlite
+    oniguruma-dev \
+    curl \
+    bash
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
+# Install PHP extensions
+RUN docker-php-ext-configure zip
+RUN docker-php-ext-install zip pdo pdo_sqlite
 
-# ------------------------------------------------------------
-# Set working directory
-# ------------------------------------------------------------
-WORKDIR /var/www/html
-
-# ------------------------------------------------------------
 # Install Composer
-# ------------------------------------------------------------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Copy composer files first (layer caching)
-COPY composer.json composer.lock ./
+# Work directory
+WORKDIR /app
 
-RUN composer install \
-    --no-dev \
-    --optimize-autoloader \
-    --no-interaction \
-    --no-progress
-
-# ------------------------------------------------------------
-# Copy entire application
-# ------------------------------------------------------------
+# Copy source code
 COPY . .
 
-# ------------------------------------------------------------
-# Fix permissions required by Laravel
-# ------------------------------------------------------------
-RUN chown -R www-data:www-data storage bootstrap/cache database \
-    && chmod -R 775 storage bootstrap/cache database
+# Install Laravel dependencies
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
-# Ensure database directory exists
-RUN mkdir -p /var/www/html/database
+# Ensure SQLite file exists
+RUN touch /app/database/database.sqlite && chmod 777 /app/database/database.sqlite
 
-# ------------------------------------------------------------
-# Copy entrypoint script (handles sqlite creation, migrations, seeding)
-# ------------------------------------------------------------
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Run migrations + seed during build
+RUN php artisan key:generate
+RUN php artisan migrate --force
+RUN php artisan db:seed --force
 
-EXPOSE 80
+# Expose port
+EXPOSE 8000
 
-ENTRYPOINT ["entrypoint.sh"]
-CMD ["apache2-foreground"]
+# Start Laravel using PHP server
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
